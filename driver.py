@@ -121,7 +121,6 @@ def main():
     success = False
     while not success:
         try:
-            set_bank(1)
             bus.write_byte_data(I2C_IMU_ADDRESS, ICM20948_PWR_MGMT_1, 0x01) # wake up imu from sleep, try until works 
             bus.write_byte_data(I2C_IMU_ADDRESS, ICM20948_PWR_MGMT_2, 0x00) # Set accelerometer and gyroscope to on
             # set_bank(3) # Change to bank 3
