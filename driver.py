@@ -1,6 +1,7 @@
 import smbus
 import time as t
 import numpy as np
+import struct
 from madgwickahrs import MadgwickAHRS
 
 I2C_IMU_ADDRESS = 0x69
@@ -58,10 +59,10 @@ def get_decimal(ls, ms):
     high = read_data(ms) << 8
     low = read_data(ls) & 0xff
     return np.int16((high | ls))
-# def get_mag_decimal(ms,ls):
-#     high = read_mag_data(ms) << 8 # little endian so ls is right 8 bits
-#     low = read_mag_data(ls) & 0xff
-#     return np.int16((high | low))
+def get_mag_decimal(ls,ms):
+    high = bus.read_byte_data(0x0c,ms) << 8 # little endian so ls is right 8 bits
+    low = bus.read_byte_data(0x0c,ls) & 0xff
+    return np.int16((high | low))
 
 def read_data(num):
     a = bus.read_byte_data(I2C_IMU_ADDRESS, num)
@@ -73,16 +74,16 @@ def read_mag_data(ls, ms):
     bus.write_byte_data(I2C_IMU_ADDRESS, ICM20948_USER_CTRL,0b00000000)
     #while (ready != 1): # Wait until data is ready
         #time.sleep(0.00001)
-    bus.write_byte_data(I2C_IMU_ADDRESS,ICM20948_INT_PIN_CFG , 0b00000010)
+    bus.write_byte_data(I2C_IMU_ADDRESS, ICM20948_INT_PIN_CFG , 0b00000010)
     bus.write_byte_data(0x0c,0x32,0b00010)
     bus.write_byte_data(0x0c,0x31,0b00010)
-    return get_decimal(ls,ms)
+    return get_mag_decimal(ls,ms)
 
 
 
 def set_bank(bank):
-    bank = (bank << 4)
-    bus.write_byte_data(I2C_IMU_ADDRESS, 0x7f,bank)
+    newbank = (bank << 4)
+    bus.write_byte_data(I2C_IMU_ADDRESS, 0x7f,newbank)
 # def mag_write(reg,value):
 #     set_bank(3) # Set bank to 3
 #     bus.write_byte_data(I2C_IMU_ADDRESS, ICM20948_I2C_SLV0_ADDR, AK09916_I2C_ADDR) # Set slave 0 address to i2c address of magnetometer
@@ -113,16 +114,22 @@ def get_data():
     mag_x = read_mag_data(0x11,0x12) #get_mag_decimal(0x3C, 0x3B)
     mag_y = read_mag_data(0x13,0x14) #get_mag_decimal(0x3E, 0x3D)
     mag_z = read_mag_data(0x15,0x16) #get_mag_decimal(0x40, 0x3D)
-    # print("mag x: ", mag_x,"mag y: ",mag_y,"mag z: ",mag_z)
-
+#     print("mag x: ", mag_x,"mag y: ",mag_y,"mag z: ",mag_z)
+    bus.read_byte_data(0x0c,0x18)
     return np.array([accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, mag_x, mag_y, mag_z])
 
 def main():
     success = False
     while not success:
         try:
+            print("ATtempting Startup")
             bus.write_byte_data(I2C_IMU_ADDRESS, ICM20948_PWR_MGMT_1, 0x01) # wake up imu from sleep, try until works 
             bus.write_byte_data(I2C_IMU_ADDRESS, ICM20948_PWR_MGMT_2, 0x00) # Set accelerometer and gyroscope to on
+            set_bank(2)
+            bus.write_byte_data(I2C_IMU_ADDRESS, 0x01,0b00000000)
+            bus.write_byte_data(I2C_IMU_ADDRESS,0x13,0x00)
+            set_bank(0)
+            t.sleep(1)
             # set_bank(3) # Change to bank 3
             # bus.write_byte_data(I2C_IMU_ADDRESS,ICM20948_I2C_MST_CTRL,0x4d) # Set i2c control for magnetometer. Multimaster capability, and i2c clockspeed of 7, recommended
             # bus.write_byte_data(I2C_IMU_ADDRESS,ICM20948_I2C_MST_DELAY_CTRL,0x01) # Set slave 0 to only be accessed every x samples
@@ -130,6 +137,7 @@ def main():
             success = True
             
         except:
+            t.sleep(1)
             pass
 
     while(True):
@@ -139,19 +147,19 @@ def main():
             print("Connection Lost")
             t.sleep(1)
  
-        # print("Accel: ", data[0], ",", data[1], ",", data[2])
-        # print("Gyro: ", data[3], ",", data[4], ",", data[5])
-        # print("Mag: ", data[6], ",", data[7], ",", data[8])
-        # print()
+        print("Accel: ", data[0], ",", data[1], ",", data[2])
+        print("Gyro: ", data[3], ",", data[4], ",", data[5])
+        print("Mag: ", data[6], ",", data[7], ",", data[8])
+        print()
 
         acc = np.array([data[0], data[1], data[2]])
         gyr = np.array([data[3], data[4], data[5]])
         mag = np.array([data[6], data[7], data[8]])
         gyr_rad = gyr * (np.pi/180)
     
-        # filter.update(gyr_rad,acc,mag)
+        filter.update(gyr_rad,acc,mag)
         # aboves update method can be run instead of update_imu if the magnetometer problem is fixed 
-        filter.update_imu(gyr_rad,acc) #updates the filter and returns roll, pitch, and yaw in quaternion form
+        # filter.update_imu(gyr_rad,acc) #updates the filter and returns roll, pitch, and yaw in quaternion form
         ahrs = filter.quaternion.to_euler_angles()
 
         # values are between -pi and pi
@@ -159,7 +167,7 @@ def main():
         curPitch = ahrs[1]
         curYaw = ahrs[2]
         
-        # print("Roll: ", curRoll, " Pitch: ", curPitch, " Yaw: ", curYaw)
+        print("Roll: ", curRoll, " Pitch: ", curPitch, " Yaw: ", curYaw)
         
 
 if(__name__ == '__main__'):
