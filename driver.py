@@ -120,14 +120,19 @@ def get_data():
 
 def main():
     success = False
+    calibration = 0
+    calibrationtime = 0
+    xav = 0
+    yav = 0
+    zav = 0 
     while not success:
         try:
-            print("ATtempting Startup")
+            print("Attempting Startup")
             bus.write_byte_data(I2C_IMU_ADDRESS, ICM20948_PWR_MGMT_1, 0x01) # wake up imu from sleep, try until works 
             bus.write_byte_data(I2C_IMU_ADDRESS, ICM20948_PWR_MGMT_2, 0x00) # Set accelerometer and gyroscope to on
             set_bank(2)
-            bus.write_byte_data(I2C_IMU_ADDRESS, 0x01,0b00000000)
-            bus.write_byte_data(I2C_IMU_ADDRESS,0x13,0x00)
+            bus.write_byte_data(I2C_IMU_ADDRESS, 0x01,0b00000110)
+            bus.write_byte_data(I2C_IMU_ADDRESS, 0x14,0b00000110)
             set_bank(0)
             t.sleep(1)
             # set_bank(3) # Change to bank 3
@@ -143,12 +148,28 @@ def main():
     while(True):
         try:
             data = get_data()
+            if calibrationtime < 10:
+                xav += data[0]
+                yav += data[1]
+                zav += data[2]
+                print("Calibrating")
         except:
             print("Connection Lost")
-            t.sleep(1)
- 
-        print("Accel: ", data[0], ",", data[1], ",", data[2])
-        print("Gyro: ", data[3], ",", data[4], ",", data[5])
+            t.sleep(1) 
+        if calibration = 0 && calibration time >=10:
+                xav /= 10
+                yav /= 10
+                zav /= 10
+                xlower =
+                xupper =
+                ylower =
+                yupper = 
+                zlower = 
+                zupper =
+                calibration = 1
+
+        print("Accel: ", data[0]/2048, ",", data[1]/2048, ",", data[2]/2048)
+        print("Gyro: ", data[3]/2000, ",", data[4]/2000, ",", data[5]/2000)
         print("Mag: ", data[6], ",", data[7], ",", data[8])
         print()
 
@@ -166,7 +187,7 @@ def main():
         curRoll = ahrs[0]
         curPitch = ahrs[1]
         curYaw = ahrs[2]
-        
+        t.sleep(1) 
         print("Roll: ", curRoll, " Pitch: ", curPitch, " Yaw: ", curYaw)
         
 
